@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>賃金の明細 計算ツール</title>
+<style>
+:root{ color-scheme: light; }
+*{box-sizing:border-box;}
+body{
+  margin:0; padding:16px 20px 40px;
+  background:#f7f8fa; color:#1a1d21;
+  font-family: -apple-system, "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+  font-size:14px; line-height:1.55;
+}
+h1{font-size:19px; margin:0 0 4px;}
+h2{font-size:15px; margin:0; color:#fff;}
+.sub{color:#5b6470; font-size:12.5px; margin-bottom:14px;}
+.card{background:#fff; border:1px solid #e2e5ea; border-radius:10px; margin-bottom:14px; overflow:hidden;}
+.card-head{background:#2f5c8a; padding:9px 14px; display:flex; align-items:center; justify-content:space-between;}
+.card-body{padding:14px 16px;}
+label{display:block; font-size:12.5px; color:#4a5260; margin-bottom:3px;}
+input[type=text], input[type=number], select{
+  width:100%; padding:6px 8px; border:1px solid #cfd4db; border-radius:6px; font-size:13.5px;
+  background:#fff; color:#1a1d21;
+}
+input:focus, select:focus{outline:2px solid #2f5c8a33; border-color:#2f5c8a;}
+.row{display:flex; gap:12px; flex-wrap:wrap;}
+.col{flex:1; min-width:140px;}
+.radio-group{display:flex; gap:16px; margin-bottom:8px;}
+.radio-group label{display:flex; align-items:center; gap:5px; font-size:13.5px; color:#1a1d21; margin:0;}
+.radio-group input{width:auto;}
+table{width:100%; border-collapse:collapse; font-size:13px;}
+th,td{border-bottom:1px solid #e8eaed; padding:6px 6px; text-align:left; vertical-align:top;}
+th{color:#5b6470; font-weight:600; font-size:12px;}
+.btn{
+  background:#2f5c8a; color:#fff; border:none; border-radius:6px; padding:7px 13px;
+  font-size:13px; cursor:pointer;
+}
+.btn:hover{background:#254a70;}
+.btn.secondary{background:#fff; color:#2f5c8a; border:1px solid #2f5c8a;}
+.btn.secondary:hover{background:#eef3f9;}
+.btn.small{padding:4px 9px; font-size:12px;}
+.btn.danger{background:#fff; color:#c0392b; border:1px solid #e0a79f;}
+.btn.danger:hover{background:#fdf1ef;}
+.btn.ai{background:#6a3fb5;}
+.btn.ai:hover{background:#582f9c;}
+.highlight-box{
+  background:#eef3f9; border:1px solid #cddcee; border-radius:8px; padding:12px 16px;
+  display:flex; justify-content:space-between; align-items:center; margin-top:8px;
+}
+.highlight-box .amt{font-size:22px; font-weight:700; color:#1c4d80;}
+.result-box{
+  background:#eaf7ee; border:1px solid #b9e3c4; border-radius:8px; padding:14px 18px;
+  display:flex; justify-content:space-between; align-items:center;
+}
+.result-box .amt{font-size:26px; font-weight:700; color:#1e7a3d;}
+.note{font-size:12px; color:#6b7280; margin-top:4px;}
+.note b{color:#4a5260;}
+.deduct-row{display:grid; grid-template-columns:140px 1fr 130px; gap:10px; align-items:start; padding:10px 0; border-bottom:1px solid #eef0f3;}
+.deduct-row:last-child{border-bottom:none;}
+.deduct-label{font-weight:600; padding-top:6px;}
+.deduct-amt{text-align:right; font-weight:700; font-size:15px; padding-top:6px;}
+.pill{display:inline-block; background:#f0f2f5; border-radius:20px; padding:2px 9px; font-size:11px; color:#5b6470; margin-left:6px;}
+textarea{
+  width:100%; min-height:44px; padding:6px 8px; border:1px solid #cfd4db; border-radius:6px;
+  font-size:12.5px; font-family:inherit; resize:vertical;
+}
+.suggestion-loading{color:#6a3fb5; font-size:12px;}
+.footer-note{font-size:11.5px; color:#8a919c; margin-top:18px; border-top:1px solid #e2e5ea; padding-top:10px;}
+.toolbar{display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;}
+.copybox{white-space:pre-wrap; background:#fafbfc; border:1px dashed #cfd4db; border-radius:8px; padding:12px; font-size:12.5px; margin-top:10px; display:none;}
+</style>
+</head>
+<body>
+
+<h1>賃金の明細 計算ツール（参考様式第1-6号 別紙1対応）</h1>
+<div class="sub">技能実習生（ベトナム等）向け賃金明細を作成するたびに使う計算ツールです。基本給の換算、諸手当の計算方法の提案、税・社会保険料・雇用保険料の自動概算、居住費の算定と入管向け説明文の提案まで行います。数値はすべて「約」＝概算です。案件ごとに <b>下部の「リセット」</b> から初期化してください。</div>
+
+<div class="toolbar">
+  <button class="btn secondary" id="resetBtn">🔄 新しい実習生用にリセット</button>
+  <button class="btn secondary" id="copyBtn">📋 様式用テキストをコピー</button>
+</div>
+<div class="copybox" id="copyBox"></div>
+
+<!-- 1. 基本賃金 -->
+<div class="card">
+  <div class="card-head"><h2>1. 基本賃金</h2></div>
+  <div class="card-body">
+    <div class="radio-group">
+      <label><input type="radio" name="wageType" value="monthly" checked> 月給</label>
+      <label><input type="radio" name="wageType" value="daily"> 日給</label>
+      <label><input type="radio" name="wageType" value="hourly"> 時間給</label>
+    </div>
+    <div class="row">
+      <div class="col">
+        <label id="wageAmountLabel">金額（円）</label>
+        <input type="number" id="wageAmount" value="180000" min="0">
+      </div>
+      <div class="col">
+        <label>年間所定労働時間数（時間）</label>
+        <input type="number" id="annualHours" value="2080" step="1" min="1">
+      </div>
+    </div>
+    <div class="note">月平均所定労働時間は、年間所定労働時間数 ÷ 12 で算出します（例：週40時間×52週＝2,080時間）。時給・月給の相互換算はこの月平均所定労働時間を用いて計算します。</div>
+    <div class="note" id="annualNote" style="margin-top:6px;"></div>
+    <div class="note" id="conversionNote"></div>
+  </div>
+</div>
+
+<!-- 2. 諸手当 -->
+<div class="card">
+  <div class="card-head"><h2>2. 諸手当の額及び計算方法等</h2></div>
+  <div class="card-body">
+    <table id="allowanceTable">
+      <thead>
+        <tr><th style="width:16%">手当の種類</th><th style="width:16%">手当名（任意）</th><th style="width:12%">金額（円）</th><th>計算方法（AI提案・編集可）</th><th style="width:70px"></th></tr>
+      </thead>
+      <tbody id="allowanceBody"></tbody>
+    </table>
+    <button class="btn secondary small" id="addAllowanceBtn">＋ 手当を追加</button>
+
+    <div class="note" style="margin-top:10px;">※時間外労働の割増賃金は含みません。</div>
+
+    <div style="margin-top:14px; border-top:1px solid #eef0f3; padding-top:12px;">
+      <label style="display:flex; align-items:center; gap:6px; font-size:13.5px; color:#1a1d21;">
+        <input type="checkbox" id="fixedOTEnabled" style="width:auto;"> 固定残業代がある場合はここに入力する
+      </label>
+      <div id="fixedOTFields" style="display:none; margin-top:8px;">
+        <div class="row">
+          <div class="col">
+            <label>固定残業代（円）</label>
+            <input type="number" id="fixedOTAmount" value="0" min="0">
+          </div>
+          <div class="col" style="flex:2;">
+            <label>時間外労働の時間数（時間分）</label>
+            <input type="number" id="fixedOTHours" value="20" min="0">
+          </div>
+        </div>
+        <div class="note" id="fixedOTText"></div>
+      </div>
+    </div>
+
+    <div class="highlight-box">
+      <div>諸手当 合計（２）</div>
+      <div class="amt" id="allowanceTotal">0円</div>
+    </div>
+  </div>
+</div>
+
+<!-- 3. 支払概算額 -->
+<div class="result-box" style="margin-bottom:14px;">
+  <div><b>3. 1か月当たりの支払概算額（１＋２）</b></div>
+  <div class="amt" id="grossTotal">0円</div>
+</div>
+
+<!-- 4. 控除 -->
+<div class="card">
+  <div class="card-head"><h2>4. 賃金支払時に控除する項目</h2></div>
+  <div class="card-body">
+
+    <div class="deduct-row">
+      <div class="deduct-label">(a) 税金（所得税）</div>
+      <div>
+        <div class="row">
+          <div class="col">
+            <label>源泉控除対象配偶者</label>
+            <select id="taxSpouse"><option value="0">なし</option><option value="1">あり</option></select>
+          </div>
+          <div class="col">
+            <label>扶養親族等の数（人）</label>
+            <input type="number" id="taxDependents" value="0" min="0" max="10">
+          </div>
+        </div>
+        <div class="note">令和8年分 源泉徴収税額表（月額表・甲欄）の電算機計算特例に基づく自動計算。社会保険料・雇用保険料控除後の金額を課税対象とします。<span class="pill">国税庁 令和8年分</span></div>
+      </div>
+      <div class="deduct-amt" id="taxAmount">0円</div>
+    </div>
+
+    <div class="deduct-row">
+      <div class="deduct-label">(b) 社会保険料</div>
+      <div>
+        <label style="display:flex; align-items:center; gap:6px; margin-bottom:8px;">
+          <input type="checkbox" id="shakaiEnabled" style="width:auto;" checked> 適用する（健康保険・厚生年金 等）
+        </label>
+        <div class="row" id="shakaiFields">
+          <div class="col">
+            <label>健康保険料率（都道府県）</label>
+            <select id="healthPref">
+              <option value="10.08" selected>熊本 10.08%</option>
+              <option value="9.90">全国平均 9.90%</option>
+              <option value="9.85">東京 9.85%</option>
+              <option value="9.93">愛知 9.93%</option>
+              <option value="10.13">大阪 10.13%</option>
+              <option value="10.28">北海道 10.28%</option>
+              <option value="10.55">佐賀（最高）10.55%</option>
+              <option value="9.21">新潟（最低）9.21%</option>
+              <option value="custom">その他（手入力）</option>
+            </select>
+          </div>
+          <div class="col" id="customHealthCol" style="display:none;">
+            <label>健康保険料率を直接入力（%）</label>
+            <input type="number" id="customHealthRate" value="9.90" step="0.01">
+          </div>
+          <div class="col">
+            <label>年齢区分</label>
+            <select id="ageBand">
+              <option value="under40">40歳未満（介護保険なし）</option>
+              <option value="40to64">40〜64歳（介護保険料あり）</option>
+              <option value="65plus">65歳以上（介護保険なし）</option>
+            </select>
+          </div>
+        </div>
+        <div class="note">健康保険（労使折半）＋介護保険（該当年齢のみ・折半）＋こども・子育て支援金（折半）＋厚生年金保険 9.15%（固定・折半）の被保険者負担分を合算した概算です。実際の保険料は標準報酬月額の等級表に基づくため若干の差が生じます。<span class="pill">協会けんぽ 令和8年度</span></div>
+      </div>
+      <div class="deduct-amt" id="shakaiAmount">0円</div>
+    </div>
+
+    <div class="deduct-row">
+      <div class="deduct-label">(c) 雇用保険料</div>
+      <div>
+        <label style="display:flex; align-items:center; gap:6px; margin-bottom:8px;">
+          <input type="checkbox" id="koyouEnabled" style="width:auto;" checked> 適用する
+        </label>
+        <div class="row" id="koyouFields">
+          <div class="col">
+            <label>事業の種類（職種別）</label>
+            <select id="koyouType">
+              <option value="0.005">一般の事業（労働者負担 0.5%）</option>
+              <option value="0.006">農林水産・清酒製造の事業（労働者負担 0.6%）</option>
+              <option value="0.006">建設の事業（労働者負担 0.6%）</option>
+            </select>
+          </div>
+        </div>
+        <div class="note">令和8年4月1日〜令和9年3月31日適用の雇用保険料率（労働者負担分）で自動計算。<span class="pill">厚生労働省 令和8年度</span></div>
+      </div>
+      <div class="deduct-amt" id="koyouAmount">0円</div>
+    </div>
+
+    <div class="deduct-row">
+      <div class="deduct-label">(d) 食費</div>
+      <div>
+        <label>金額（円・任意）</label>
+        <input type="number" id="foodCost" value="0" min="0">
+        <div class="note">食費を徴収する場合は、提供する食事の実費を超えない額としてください。</div>
+      </div>
+      <div class="deduct-amt" id="foodAmount">0円</div>
+    </div>
+
+    <div class="deduct-row">
+      <div class="deduct-label">(e) 居住費</div>
+      <div>
+        <label style="display:flex; align-items:center; gap:6px; margin-bottom:8px;">
+          <input type="checkbox" id="housingSelfContract" style="width:auto;"> 実習生本人が自分で住居を契約する（会社は居住費を徴収しない＝0円）
+        </label>
+        <div id="housingFields">
+          <div class="row">
+            <div class="col"><label>社宅の場合：1人当たり居住費（円/月）</label><input type="number" id="housingPerPerson" value="0" min="0"></div>
+          </div>
+          <div style="margin-top:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <label style="margin:0;">算定方法・説明文（手入力／必要に応じてAI提案を参考に編集）</label>
+              <button class="btn ai small" id="housingAiBtn">✨ AI提案を見る</button>
+            </div>
+            <textarea id="housingText" placeholder="例：賃貸借契約書に基づく家賃月額○○円を入居者○名で除した金額を徴収する。敷金・礼金・共益費の初期費用は含まない。（算出根拠：賃貸借契約書、入居者名簿）"></textarea>
+          </div>
+          <div class="note">技能実習・特定技能の運用要領では、居住費は実際に要する費用（家賃・敷金礼金の償却分等）の範囲内で、算出根拠（賃貸借契約書・入居者名簿等）を明確にすることが求められます。算定方法欄には、家賃の総額・按分方法・入居人数など、算出根拠が分かるように具体的に記入してください。</div>
+        </div>
+        <div class="note" id="housingSelfNote" style="display:none;">自己契約の場合、会社は居住費を徴収しないため0円になります（契約者本人が家主と直接契約）。</div>
+      </div>
+      <div class="deduct-amt" id="housingAmount">0円</div>
+    </div>
+
+    <div class="deduct-row">
+      <div class="deduct-label">(f) 水道光熱費</div>
+      <div>
+        <div class="radio-group">
+          <label><input type="radio" name="utilType" value="actual" checked> 実費</label>
+          <label><input type="radio" name="utilType" value="fixed"> 固定額</label>
+        </div>
+        <label>金額（円）</label>
+        <input type="number" id="utilAmount" value="0" min="0">
+        <div class="note">「実費」の場合は当月の請求書等に基づく実額を、「固定額」の場合は過去数か月の平均実費を上回らない額を入力してください。</div>
+      </div>
+      <div class="deduct-amt" id="utilAmountDisp">0円</div>
+    </div>
+
+    <div class="deduct-row">
+      <div class="deduct-label">その他控除</div>
+      <div>
+        <table id="otherTable">
+          <thead><tr><th style="width:50%">項目名</th><th>金額（円）</th><th style="width:60px"></th></tr></thead>
+          <tbody id="otherBody"></tbody>
+        </table>
+        <button class="btn secondary small" id="addOtherBtn">＋ 項目を追加</button>
+      </div>
+      <div class="deduct-amt" id="otherAmount">0円</div>
+    </div>
+
+    <div class="highlight-box">
+      <div>控除額 合計（４）</div>
+      <div class="amt" id="deductTotal">0円</div>
+    </div>
+  </div>
+</div>
+
+<!-- 5. 手取り -->
+<div class="result-box">
+  <div><b>5. 手取り支給額（３－４）</b></div>
+  <div class="amt" id="netAmount">0円</div>
+</div>
+<div class="note">※欠勤等がない場合であって、時間外労働の割増賃金等は除きます。</div>
+
+<div class="footer-note">
+本ツールはすべて「概算（約）」を算出するものです。所得税は国税庁 令和8年分源泉徴収税額表（月額表・甲欄／電算機計算の特例）に基づき自動計算していますが、実際の年末調整で精算が必要です。社会保険料は協会けんぽ 令和8年度都道府県別保険料率と厚生年金保険料率（18.3%）等から概算したものであり、実際は標準報酬月額の等級表により決定されます。雇用保険料率は厚生労働省 令和8年度（令和8年4月〜令和9年3月）の率です。最終的な金額は必ず加入している健康保険組合・年金事務所・ハローワーク等の最新情報で確認し、社会保険労務士等の専門家にもご確認ください。
+</div>
+
+<script>
+const state = {
+  allowances: [
+    {id:1, type:'家族手当', name:'', amount:0, method:''},
+  ],
+  others: []
+};
+let idSeq = 2;
+let otherIdSeq = 1;
+
+const ALLOWANCE_TYPES = ['家族手当','通勤手当','住宅手当','皆勤手当','資格手当','役職手当','食事手当','その他'];
+
+const ALLOWANCE_TEMPLATES = {
+  '家族手当': (amt)=> `扶養家族の人数に応じて算定し、月額${fmt(amt)}円を定額支給する。`,
+  '通勤手当': (amt)=> `自宅から就労場所までの通勤に要する実費交通費として、月額${fmt(amt)}円を支給する。`,
+  '住宅手当': (amt)=> `会社契約（借上げ）住宅の家賃相当額として、月額${fmt(amt)}円を定額支給する。`,
+  '皆勤手当': (amt)=> `当該賃金計算期間中に欠勤がなかった場合に、月額${fmt(amt)}円を定額支給する。`,
+  '資格手当': (amt)=> `業務に関連する資格・技能を保有する者に対し、月額${fmt(amt)}円を定額支給する。`,
+  '役職手当': (amt)=> `職務の責任・役職の程度に応じ、月額${fmt(amt)}円を定額支給する。`,
+  '食事手当': (amt)=> `食事の提供又は補助として、月額${fmt(amt)}円を定額支給する。`,
+  'その他': (amt)=> `支給要件（対象者・条件）と算定方法（定額／実費の別）を具体的に記載してください。`
+};
+
+function fmt(n){
+  n = Math.round(Number(n)||0);
+  return n.toLocaleString('ja-JP');
+}
+function yen(n){ return fmt(n)+'円'; }
+function val(id){ return document.getElementById(id).value; }
+function num(id){ return Number(document.getElementById(id).value)||0; }
+
+// ---------- 1. 基本賃金 ----------
+function calcBaseWage(){
+  const type = document.querySelector('input[name=wageType]:checked').value;
+  const amount = num('wageAmount');
+  const annualHours = num('annualHours');
+  const monthlyHours = annualHours/12;
+  document.getElementById('annualNote').textContent =
+    `月平均所定労働時間：約${monthlyHours.toFixed(1)}時間（＝年間所定労働時間数 ${fmt(annualHours)}時間 ÷ 12）`;
+  const lbl = document.getElementById('wageAmountLabel');
+  let monthlyAmount = 0, note = '';
+  if(type==='monthly'){
+    lbl.textContent = '月給（円）';
+    monthlyAmount = amount;
+    const hourly = annualHours>0 ? (amount*12)/annualHours : 0;
+    note = `※月給の場合の1時間当たりの金額：約 ${yen(hourly)}（計算式：月給×12ヶ月÷年間所定労働時間数）`;
+  } else if(type==='daily'){
+    lbl.textContent = '日給（円）';
+    const monthlyDays = monthlyHours/8;
+    const hourly = amount/8;
+    monthlyAmount = amount*monthlyDays;
+    note = `※日給の場合の1か月当たりの金額：約 ${yen(monthlyAmount)}（1日8時間を標準として、月平均所定労働日数 約${monthlyDays.toFixed(1)}日で換算）／1時間当たり 約${yen(hourly)}`;
+  } else {
+    lbl.textContent = '時間給（円）';
+    monthlyAmount = (amount*annualHours)/12;
+    note = `※時間給の場合の1か月当たりの金額：約 ${yen(monthlyAmount)}（計算式：時給×年間所定労働時間数÷12ヶ月）`;
+  }
+  document.getElementById('conversionNote').textContent = note;
+  return monthlyAmount;
+}
+
+// ---------- 2. 諸手当 ----------
+function renderAllowances(){
+  const body = document.getElementById('allowanceBody');
+  body.innerHTML = '';
+  state.allowances.forEach(row=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <select data-field="type" data-id="${row.id}">
+          ${ALLOWANCE_TYPES.map(t=>`<option value="${t}" ${t===row.type?'selected':''}>${t}</option>`).join('')}
+        </select>
+      </td>
+      <td><input type="text" data-field="name" data-id="${row.id}" value="${row.name}" placeholder="任意"></td>
+      <td><input type="number" data-field="amount" data-id="${row.id}" value="${row.amount}" min="0"></td>
+      <td>
+        <div style="display:flex; gap:6px; align-items:flex-start;">
+          <textarea data-field="method" data-id="${row.id}" style="flex:1;">${row.method}</textarea>
+          <button class="btn ai small" data-ai="${row.id}" title="AIで提案文を生成">✨</button>
+        </div>
+      </td>
+      <td><button class="btn danger small" data-del="${row.id}">削除</button></td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
+function addAllowance(){
+  state.allowances.push({id:idSeq++, type:'その他', name:'', amount:0, method: ALLOWANCE_TEMPLATES['その他'](0)});
+  renderAllowances();
+  recalc();
+}
+
+document.getElementById('addAllowanceBtn').addEventListener('click', addAllowance);
+
+document.getElementById('allowanceBody').addEventListener('change', (e)=>{
+  const t = e.target;
+  const id = Number(t.dataset.id);
+  const row = state.allowances.find(r=>r.id===id);
+  if(!row) return;
+  if(t.dataset.field==='type'){
+    row.type = t.value;
+    row.method = ALLOWANCE_TEMPLATES[t.value](row.amount);
+    renderAllowances();
+  } else if(t.dataset.field==='name'){
+    row.name = t.value;
+  } else if(t.dataset.field==='amount'){
+    row.amount = Number(t.value)||0;
+    if(ALLOWANCE_TEMPLATES[row.type] && (!row.method || row.methodAuto!==false)){
+      row.method = ALLOWANCE_TEMPLATES[row.type](row.amount);
+      renderAllowances();
+    }
+  } else if(t.dataset.field==='method'){
+    row.method = t.value;
+    row.methodAuto = false;
+  }
+  recalc();
+});
+
+document.getElementById('allowanceBody').addEventListener('click', async (e)=>{
+  if(e.target.dataset.del){
+    const id = Number(e.target.dataset.del);
+    state.allowances = state.allowances.filter(r=>r.id!==id);
+    renderAllowances();
+    recalc();
+  }
+  if(e.target.dataset.ai){
+    const id = Number(e.target.dataset.ai);
+    const row = state.allowances.find(r=>r.id===id);
+    if(!row) return;
+    const btn = e.target;
+    const original = btn.textContent;
+    btn.textContent = '...'; btn.disabled = true;
+    try{
+      const prompt = `日本の技能実習制度「賃金の明細」書類（参考様式第1-6号別紙1）の『諸手当の計算方法』欄に記入する、日本語の短い一文（30〜60文字）を作成してください。手当の種類:「${row.type}」、手当名:「${row.name||'未入力'}」、月額:${row.amount||'未入力'}円。定額払いか実費払いか支給条件が明確に分かる、外国人技能実習機構の審査に耐える簡潔な文にしてください。文のみ出力し、前置きは不要です。`;
+      const res = await window.cowork.askClaude(prompt, []);
+      const text = typeof res === 'string' ? res : (res && (res.text || res.content)) || JSON.stringify(res);
+      row.method = String(text).trim();
+      row.methodAuto = false;
+      renderAllowances();
+      recalc();
+    }catch(err){
+      alert('AI提案の生成に失敗しました。手動で入力してください。');
+    }finally{
+      btn.textContent = original; btn.disabled = false;
+    }
+  }
+});
+
+document.getElementById('fixedOTEnabled').addEventListener('change', (e)=>{
+  document.getElementById('fixedOTFields').style.display = e.target.checked ? 'block' : 'none';
+  recalc();
+});
+['fixedOTAmount','fixedOTHours'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', recalc);
+});
+
+function calcAllowanceTotal(){
+  let total = state.allowances.reduce((s,r)=>s+ (Number(r.amount)||0), 0);
+  const otEnabled = document.getElementById('fixedOTEnabled').checked;
+  if(otEnabled){
+    const amt = num('fixedOTAmount');
+    const hrs = num('fixedOTHours');
+    total += amt;
+    document.getElementById('fixedOTText').textContent =
+      `支給要件：時間外労働の有無にかかわらず、${hrs}時間分の時間外手当として月額${yen(amt)}を支給。${hrs}時間を超える時間外労働分については割増賃金を追加で支給する。`;
+  }
+  return total;
+}
+
+// ---------- その他控除 ----------
+function renderOthers(){
+  const body = document.getElementById('otherBody');
+  body.innerHTML = '';
+  state.others.forEach(row=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" data-ofield="name" data-oid="${row.id}" value="${row.name}" placeholder="例：作業着代 等"></td>
+      <td><input type="number" data-ofield="amount" data-oid="${row.id}" value="${row.amount}" min="0"></td>
+      <td><button class="btn danger small" data-odel="${row.id}">削除</button></td>
+    `;
+    body.appendChild(tr);
+  });
+}
+document.getElementById('addOtherBtn').addEventListener('click', ()=>{
+  state.others.push({id:otherIdSeq++, name:'', amount:0});
+  renderOthers();
+  recalc();
+});
+document.getElementById('otherBody').addEventListener('change', (e)=>{
+  const t = e.target;
+  const id = Number(t.dataset.oid);
+  const row = state.others.find(r=>r.id===id);
+  if(!row) return;
+  if(t.dataset.ofield==='name') row.name = t.value;
+  if(t.dataset.ofield==='amount') row.amount = Number(t.value)||0;
+  recalc();
+});
+document.getElementById('otherBody').addEventListener('click', (e)=>{
+  if(e.target.dataset.odel){
+    const id = Number(e.target.dataset.odel);
+    state.others = state.others.filter(r=>r.id!==id);
+    renderOthers();
+    recalc();
+  }
+});
+
+// ---------- 所得税 (令和8年分 月額表 甲欄 電算機特例) ----------
+function calcIncomeTax(A, hasSpouse, dependents){
+  if(A < 0) A = 0;
+  let shotokuKoujo;
+  if(A <= 158333) shotokuKoujo = 54167;
+  else if(A <= 299999) shotokuKoujo = A*0.30 + 6667;
+  else if(A <= 549999) shotokuKoujo = A*0.20 + 36667;
+  else if(A <= 708330) shotokuKoujo = A*0.10 + 91667;
+  else shotokuKoujo = 162500;
+  shotokuKoujo = Math.ceil(shotokuKoujo);
+
+  const haigusha = hasSpouse ? 31667 : 0;
+  const fuyou = 31667 * Math.min(dependents,7) + (dependents>7 ? 0 : 0);
+
+  let kiso;
+  if(A <= 2120833) kiso = 48334;
+  else if(A <= 2162499) kiso = 40000;
+  else if(A <= 2204166) kiso = 26667;
+  else if(A <= 2245833) kiso = 13334;
+  else kiso = 0;
+
+  let B = A - shotokuKoujo - haigusha - fuyou - kiso;
+  if(B < 0) B = 0;
+
+  let tax;
+  if(B <= 162500) tax = B*0.05105;
+  else if(B <= 275000) tax = B*0.10210 - 8296;
+  else if(B <= 579166) tax = B*0.20420 - 36374;
+  else if(B <= 750000) tax = B*0.23483 - 54113;
+  else if(B <= 1500000) tax = B*0.33693 - 130688;
+  else if(B <= 3333333) tax = B*0.40840 - 237893;
+  else tax = B*0.45945 - 408061;
+  if(dependents>7){
+    tax -= (dependents-7)*1610;
+  }
+  if(tax < 0) tax = 0;
+  tax = Math.round(tax/10)*10;
+  return tax;
+}
+
+document.getElementById('healthPref').addEventListener('change', (e)=>{
+  document.getElementById('customHealthCol').style.display = e.target.value==='custom' ? 'block' : 'none';
+  recalc();
+});
+document.getElementById('shakaiEnabled').addEventListener('change', (e)=>{
+  document.getElementById('shakaiFields').style.querySelectorAll('select,input').forEach(el=>el.disabled = !e.target.checked);
+  recalc();
+});
+document.getElementById('koyouEnabled').addEventListener('change', (e)=>{
+  document.getElementById('koyouFields').querySelectorAll('select,input').forEach(el=>el.disabled = !e.target.checked);
+  recalc();
+});
+document.getElementById('housingSelfContract').addEventListener('change', (e)=>{
+  const self = e.target.checked;
+  document.getElementById('housingFields').style.display = self ? 'none' : 'block';
+  document.getElementById('housingSelfNote').style.display = self ? 'block' : 'none';
+  recalc();
+});
+
+document.getElementById('housingPerPerson').addEventListener('input', recalc);
+
+document.getElementById('housingAiBtn').addEventListener('click', async (e)=>{
+  const btn = e.target;
+  const original = btn.textContent;
+  btn.textContent = '生成中...'; btn.disabled = true;
+  try{
+    const perPerson = num('housingPerPerson');
+    const prompt = `日本の技能実習制度・特定技能制度における「賃金の明細」書類に記載する、居住費（社宅・寮費）の徴収根拠についての説明文（80〜150文字程度、日本語）の一例を作成してください。条件：1人当たり月額${fmt(perPerson)}円を徴収する社宅を想定。外国人技能実習機構（OTIT）や地方出入国在留管理局の審査で「実際に要する費用の範囲内であり、算出根拠が明確である」と認められるよう、家賃総額・入居人数による按分方法や賃貸借契約書等の根拠資料への言及を含め、簡潔にまとめてください。あくまで参考例として、実際の家賃総額・入居人数はご自身で書き換えてもらう前提の文章にしてください。文章のみを出力してください。`;
+    const res = await window.cowork.askClaude(prompt, []);
+    const text = typeof res === 'string' ? res : (res && (res.text || res.content)) || JSON.stringify(res);
+    document.getElementById('housingText').value = String(text).trim();
+  }catch(err){
+    alert('AI提案の生成に失敗しました。手動で入力してください。');
+  }finally{
+    btn.textContent = original; btn.disabled = false;
+  }
+});
+
+function calcHousing(){
+  if(document.getElementById('housingSelfContract').checked) return 0;
+  return num('housingPerPerson');
+}
+
+// ---------- master recalc ----------
+function recalc(){
+  const baseWage = calcBaseWage();
+  const allowanceTotal = calcAllowanceTotal();
+  document.getElementById('allowanceTotal').textContent = yen(allowanceTotal);
+
+  const gross = baseWage + allowanceTotal;
+  document.getElementById('grossTotal').textContent = yen(gross);
+
+  // 社会保険料
+  const shakaiOn = document.getElementById('shakaiEnabled').checked;
+  let healthRate = val('healthPref')==='custom' ? Number(val('customHealthRate'))||0 : Number(val('healthPref'));
+  const ageBand = val('ageBand');
+  const kaigo = ageBand==='40to64' ? 1.62 : 0;
+  const kosodate = 0.23;
+  const kosei = 18.3;
+  const combinedPct = (healthRate/2) + (kaigo/2) + (kosodate/2) + (kosei/2);
+  const shakaiAmt = shakaiOn ? Math.round(gross * combinedPct/100) : 0;
+  document.getElementById('shakaiAmount').textContent = yen(shakaiAmt);
+
+  // 雇用保険料
+  const koyouOn = document.getElementById('koyouEnabled').checked;
+  const koyouRate = Number(val('koyouType'));
+  const koyouAmt = koyouOn ? Math.round(gross * koyouRate) : 0;
+  document.getElementById('koyouAmount').textContent = yen(koyouAmt);
+
+  // 所得税
+  const hasSpouse = val('taxSpouse')==='1';
+  const dependents = num('taxDependents');
+  const A = Math.max(0, gross - shakaiAmt - koyouAmt);
+  const taxAmt = calcIncomeTax(A, hasSpouse, dependents);
+  document.getElementById('taxAmount').textContent = yen(taxAmt);
+
+  // 食費
+  const foodAmt = num('foodCost');
+  document.getElementById('foodAmount').textContent = yen(foodAmt);
+
+  // 居住費
+  const housingAmt = calcHousing();
+  document.getElementById('housingAmount').textContent = yen(housingAmt);
+
+  // 水道光熱費
+  const utilAmt = num('utilAmount');
+  document.getElementById('utilAmountDisp').textContent = yen(utilAmt);
+
+  // その他
+  const otherTotal = state.others.reduce((s,r)=>s+(Number(r.amount)||0),0);
+  document.getElementById('otherAmount').textContent = yen(otherTotal);
+
+  const deductTotal = taxAmt + shakaiAmt + koyouAmt + foodAmt + housingAmt + utilAmt + otherTotal;
+  document.getElementById('deductTotal').textContent = yen(deductTotal);
+
+  const net = gross - deductTotal;
+  document.getElementById('netAmount').textContent = yen(net);
+
+  window.__lastCalc = {baseWage, allowanceTotal, gross, taxAmt, shakaiAmt, koyouAmt, foodAmt, housingAmt, utilAmt, otherTotal, deductTotal, net};
+}
+
+// bind generic inputs
+['wageAmount','annualHours','taxSpouse','taxDependents','customHealthRate','ageBand','koyouType','foodCost','utilAmount'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', recalc);
+  document.getElementById(id).addEventListener('change', recalc);
+});
+document.querySelectorAll('input[name=wageType]').forEach(r=>r.addEventListener('change', recalc));
+document.querySelectorAll('input[name=utilType]').forEach(r=>r.addEventListener('change', recalc));
+document.getElementById('healthPref').addEventListener('change', recalc);
+
+document.getElementById('resetBtn').addEventListener('click', ()=>{
+  if(!confirm('入力内容をすべて初期化します。よろしいですか？')) return;
+  document.getElementById('wageAmount').value = 180000;
+  document.getElementById('annualHours').value = 2080;
+  document.querySelector('input[name=wageType][value=monthly]').checked = true;
+  state.allowances = [{id:idSeq++, type:'家族手当', name:'', amount:0, method: ALLOWANCE_TEMPLATES['家族手当'](0)}];
+  state.others = [];
+  document.getElementById('fixedOTEnabled').checked = false;
+  document.getElementById('fixedOTAmount').value = 0;
+  document.getElementById('fixedOTHours').value = 20;
+  document.getElementById('fixedOTFields').style.display = 'none';
+  document.getElementById('taxSpouse').value = '0';
+  document.getElementById('taxDependents').value = 0;
+  document.getElementById('shakaiEnabled').checked = true;
+  document.getElementById('healthPref').value = '10.08';
+  document.getElementById('ageBand').value = 'under40';
+  document.getElementById('koyouEnabled').checked = true;
+  document.getElementById('koyouType').value = '0.005';
+  document.getElementById('foodCost').value = 0;
+  document.getElementById('housingSelfContract').checked = false;
+  document.getElementById('housingFields').style.display = 'block';
+  document.getElementById('housingSelfNote').style.display = 'none';
+  document.getElementById('housingPerPerson').value = 0;
+  document.getElementById('housingText').value = '';
+  document.getElementById('utilAmount').value = 0;
+  renderAllowances();
+  renderOthers();
+  recalc();
+});
+
+document.getElementById('copyBtn').addEventListener('click', ()=>{
+  recalc();
+  const c = window.__lastCalc;
+  const wageType = document.querySelector('input[name=wageType]:checked').value;
+  const wageLabel = wageType==='monthly' ? '月給' : wageType==='daily' ? '日給' : '時間給';
+  const allowLines = state.allowances.map((r,i)=>`(${String.fromCharCode(97+i)}) ${r.type}${r.name?'／'+r.name:''} ${fmt(r.amount)}円／計算方法：${r.method}`).join('\n');
+  const otherLines = state.others.map(r=>`　　　　　（${r.name}）（約${fmt(r.amount)}円）`).join('\n');
+  const text =
+`【賃金の支払】
+１．基本賃金：${wageLabel}（${fmt(num('wageAmount'))}円）
+${document.getElementById('conversionNote').textContent}
+
+２．諸手当の額及び計算方法等
+${allowLines}
+${document.getElementById('fixedOTEnabled').checked ? '(固定残業代) '+fmt(num('fixedOTAmount'))+'円／'+document.getElementById('fixedOTText').textContent : ''}
+
+３．１か月当たりの支払概算額（１＋２）　約${fmt(c.gross)}円（合計）
+
+４．賃金支払時に控除する項目
+(a) 税　　　金　　　（約${fmt(c.taxAmt)}円）
+(b) 社会保険料　　　（約${fmt(c.shakaiAmt)}円）
+(c) 雇用保険料　　　（約${fmt(c.koyouAmt)}円）
+(d) 食　　　費　　　（約${fmt(c.foodAmt)}円）
+(e) 居　住　費　　　（約${fmt(c.housingAmt)}円）
+　　${document.getElementById('housingText').value}
+(f) その他（水道光熱費）（約${fmt(c.utilAmt)}円）
+${otherLines}
+控除する金額　　約${fmt(c.deductTotal)}円（合計）
+
+５．手取り支給額（３－４）　約${fmt(c.net)}円（合計）
+※欠勤等がない場合であって、時間外労働の割増賃金等は除く。`;
+  const box = document.getElementById('copyBox');
+  box.textContent = text;
+  box.style.display = 'block';
+  navigator.clipboard && navigator.clipboard.writeText(text).catch(()=>{});
+});
+
+// init
+renderAllowances();
+renderOthers();
+recalc();
+</script>
+</body>
+</html>
